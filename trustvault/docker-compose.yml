@@ -1,0 +1,38 @@
+# Production-like local run: PostgreSQL + the app behind gunicorn.
+#   cp .env.example .env   # then fill in TV_MASTER_KEY / TV_AUDIT_KEY (python -m trustvault generate-keys)
+#   docker compose up --build
+#   open http://localhost:8000
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: trustvault
+      POSTGRES_PASSWORD: trustvault-local-only
+      POSTGRES_DB: trustvault
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trustvault"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      TV_DATABASE_URL: postgresql+psycopg://trustvault:trustvault-local-only@db:5432/trustvault
+      TV_COOKIE_SECURE: "false"      # plain http on localhost only; keep true anywhere else
+      TV_SEED_DEMO: "true"
+      TV_DEMO_MODE: "true"
+      TV_AUDIT_ANCHOR_FILE: /anchors/audit-anchors.jsonl
+    volumes:
+      - anchors:/anchors
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:
+  anchors:
